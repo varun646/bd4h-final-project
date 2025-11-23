@@ -1,8 +1,7 @@
 from pyhealth.datasets import MIMIC3Dataset
 from pyhealth.datasets import split_by_patient, get_dataloader
 
-# from pyhealth.tasks import drug_recommendation_mimic3_fn
-from bd4hFinalProject.DrugRecommendationTask import drug_recommendation_mimic3_fn
+from pyhealth.tasks import drug_recommendation_mimic3_fn
 from pyhealth.models import SafeDrug
 from pyhealth.trainer import Trainer
 # from models import DrugRec
