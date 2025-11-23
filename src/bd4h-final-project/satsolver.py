@@ -78,7 +78,7 @@ Each list is a SCC containing nodes of the original graph G.
 Adapted from: https://www.geeksforgeeks.org/dsa/kosarajus-algorithm-in-python/
 """
 
-# DFS algorithm
+# Depth-First-Search of the graph
 def DFS(graph, node, visited, stack):
     visited.append(node)
     for neighbor in graph.graph[node]:
@@ -86,18 +86,21 @@ def DFS(graph, node, visited, stack):
             DFS(graph, neighbor, visited, stack)
     stack.append(node)
 
+# This fills the stack using a DFS from each of the graph nodes
 def fill_order(graph, visited, stack):
     for node in graph.nodes:
         if node not in visited:
             DFS(graph, node, visited, stack)
 
+# Tranpose the graph to reverse graph edges
 def transpose(graph):
     new_graph = dir_graph()
     for node in graph.graph:
         for neighbor in graph.graph[node]:
-            new_graph.add_edge(node, neighbor)
+            new_graph.add_edge(neighbor, node)
     return new_graph
 
+# Runs Kosaraju's algorithm to get strongly connected components
 def kosaraju_scc(graph):
     stack = deque()
     fill_order(graph, [], stack)
@@ -110,7 +113,124 @@ def kosaraju_scc(graph):
         curr_node = stack.pop()
         if curr_node not in visited:
             component = []
-            DFS(graph, curr_node, visited, component)
+            DFS(transposed_graph, curr_node, visited, component)
             sccs.append(component)
 
     return sccs
+
+
+"""
+This is the heuristic the paper describes for doing a topological sort that maximizes
+agreement with the probabilities of the drugs listed.
+"""
+def heuristic_alg(last_graph, sccs, prob):
+    scc_node_idx = {}
+    for idx, component in enumerate(sccs):
+        for node in component:
+            scc_node_idx[node] = idx
+
+    scc_graph = dir_graph()
+    for node, neighbor_list in last_graph.graph.items():
+        for neighbor in neighbor_list:
+            scc_graph.add_edge(scc_node_idx[node], scc_node_idx[neighbor])
+
+    def node_score(v):
+        if v in prob:
+            return prob[v]
+        else:
+            return 1 - prob[v[1:]]
+
+    sort_sccs = []
+    while scc_graph.nodes:
+        best_node, best_score = None, None
+        for node in scc_graph.nodes:
+            in_deg = False
+            for node_2 in scc_graph.nodes:
+                if node in scc_graph.graph[node_2]:
+                    in_deg = True
+                    break
+
+            if not in_deg:
+                score = min(node_score(comp_node) for comp_node in sccs[node])
+                if best_score is None or score < best_score:
+                    best_node = node
+                    best_score = score
+
+        assert best_node is not None
+        sort_sccs.append(sccs[best_node])
+
+        scc_graph.nodes.remove(best_node)
+        for node in scc_graph.nodes:
+            if best_node in scc_graph.graph[node]:
+                scc_graph.graph[node].remove(best_node)
+
+    return sort_sccs
+
+"""
+Returns True if there is a contradiction in the literals within
+one of the strongly connected components.
+"""
+def contradiction(sccs):
+    for comp in sccs:
+        for u in comp:
+            for v in comp[comp.index(u):]:
+                if v == resolve_neg(neg + u):
+                    return True, sccs
+
+    return False, sccs
+
+
+"""
+Overall 2-SAT Solver
+First the graph is constructed from each of the formulas provided.
+For ex, given a ^ b, we add an edge ~a -> b and an edge ~b -> a.
+Given just a, we add ~a -> a
+"""
+def two_sat_solver(formula):
+    sat_graph = dir_graph()
+    for conjs in formula.conj:
+        if len(conjs) == 2:
+            u = conjs[0]
+            v = conjs[1]
+            sat_graph.add_edge(resolve_neg(neg + u), v)
+            sat_graph.add_edge(resolve_neg(neg + v), u)
+        else:
+            u = conjs[0]
+            sat_graph.add_edge(resolve_neg(neg + u), u)
+    sccs = kosaraju_scc(sat_graph)
+
+    sccs = heuristic_alg(sat_graph, sccs, formula.prob)
+
+    res = contradiction(sccs)
+
+    # 2SAT Satisfiable
+    if not res[0]:
+        sat_dict = {}
+        sccs = res[1]
+        for comp in sccs:
+            for node in comp:
+                if resolve_neg(neg + node) not in sat_dict.keys() and node not in sat_dict.keys():
+                    if '~' not in node:
+                        sat_dict[node] = 0
+                    else:
+                        sat_dict[resolve_neg(neg + node)] = 1
+        return sat_dict
+    else:
+        # Not 2SAT Satisfiable
+        return None
+
+# ======= 2-SAT example =======
+# Example from the paper repo shows that the works correctly
+if __name__ == '__main__':
+
+    formula = two_cnf({'a': 0.6, 'b': 0.9})
+    formula.add_clause(['~b', '~a'])
+    out_dict = two_sat_solver(formula)
+    print(out_dict)  # pos: {b} (higher prob), neg: {a} (lower prob)
+
+    formula = two_cnf({'a': 0.9, 'b': 0.6, 'c': 0.8, 'd': 0.6})
+    formula.add_clause(['~a', '~b'])
+    formula.add_clause(['~b', '~d'])
+    formula.add_clause(['~c', '~d'])
+    out_dict = two_sat_solver(formula)
+    print(out_dict)  # pos: {a,c} (higher probs), neg: {b, d} (lower probs)
