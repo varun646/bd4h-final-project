@@ -86,7 +86,7 @@ class Embeddings(nn.Module):
         return embeddings, padding_mask
 
 
-class SingleStageTransformerEncoder(nn.Module):
+class TransformerEncoder(nn.Module):
     def __init__(
         self,
         n_layer,
@@ -98,7 +98,7 @@ class SingleStageTransformerEncoder(nn.Module):
         word_emb_padding_idx,
         dropout=0.1,
     ):
-        super(SingleStageTransformerEncoder, self).__init__()
+        super(TransformerEncoder, self).__init__()
         self.embeddings = Embeddings(
             hidden_size,
             vocab_size,
@@ -145,7 +145,7 @@ class MultiStageTransformerEncoder(nn.Module):
             dropout=dropout,
         )
         encoder_norm = nn.LayerNorm(hidden_size)
-        self.encoder1 = SingleStageTransformerEncoder(
+        self.encoder1 = TransformerEncoder(
             n_layer1,
             hidden_size,
             num_attention_heads,
@@ -190,9 +190,9 @@ class MultiStageTransformerEncoder(nn.Module):
 
 
 # For multi-visit scenario - Optimized version
-class Mul_Attention(nn.Module):
+class MulAttention(nn.Module):
     def __init__(self, hidden_size, device):
-        super(Mul_Attention, self).__init__()
+        super(MulAttention, self).__init__()
         self.key = nn.Sequential(nn.ReLU(), nn.Linear(hidden_size, hidden_size))
         self.q = nn.Sequential(nn.ReLU(), nn.Linear(hidden_size, hidden_size))
         self.device = device
@@ -205,15 +205,17 @@ class Mul_Attention(nn.Module):
         # Create indices using broadcasting
         i = torch.arange(seq_len, device=self.device).unsqueeze(1)  # [seq_len, 1]
         j = torch.arange(seq_len, device=self.device).unsqueeze(0)  # [1, seq_len]
-        
+
         # Create mask: j <= i AND j >= max(0, i - k_mul)
         # This is equivalent to: j >= max(0, i - k_mul) AND j <= i
         lower_bound = torch.clamp(i - k_mul, min=0)  # [seq_len, 1]
         mask = (j >= lower_bound) & (j <= i)  # [seq_len, seq_len]
-        
+
         # Expand to batch dimension
-        mask = mask.unsqueeze(0).expand(batch_size, -1, -1)  # [batch_size, seq_len, seq_len]
-        
+        mask = mask.unsqueeze(0).expand(
+            batch_size, -1, -1
+        )  # [batch_size, seq_len, seq_len]
+
         return mask.float()
 
     def attention(self, query, key, value, mask=None, dropout=None):
@@ -222,43 +224,43 @@ class Mul_Attention(nn.Module):
         """
         d_k = query.size(-1)
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-        
+
         if mask is not None:
             # Ensure mask has the same shape as scores
             if mask.dim() == scores.dim() - 1:
                 mask = mask.unsqueeze(0)
             # Apply mask: set masked positions to very negative value
             scores = scores.masked_fill(mask == 0, -1e9)
-        
+
         p_attn = F.softmax(scores, dim=-1)
-        
+
         if dropout is not None:
             p_attn = dropout(p_attn)
-        
+
         return torch.matmul(p_attn, value), p_attn
 
     def forward(self, input_seq_rep, k_mul):
         """
         Forward pass with optimized mask creation.
-        
+
         Args:
             input_seq_rep: [batch_size, seq_len, hidden_size]
             k_mul: Local attention window size
-        
+
         Returns:
             out: [batch_size, seq_len, hidden_size]
             attn: [batch_size, seq_len, seq_len] attention weights
         """
         batch_size, seq_len, _ = input_seq_rep.shape
-        
+
         # Project inputs
         input_seq_key = self.key(input_seq_rep)
         input_seq_q = self.q(input_seq_rep)
-        
+
         # Create mask using vectorized operations (much faster than nested loops)
         mask = self._create_local_mask(seq_len, k_mul, batch_size)
-        
+
         # Apply attention
         out, attn = self.attention(input_seq_q, input_seq_key, input_seq_key, mask=mask)
-        
+
         return out, attn

@@ -16,6 +16,7 @@ tokenizer = AutoTokenizer.from_pretrained("seyonec/ChemBERTa-zinc-base-v1")
 model = AutoModel.from_pretrained("seyonec/ChemBERTa-zinc-base-v1")
 model.eval()
 
+
 def tokenize(x):
     try:
         mol = Chem.MolFromSmiles(x)
