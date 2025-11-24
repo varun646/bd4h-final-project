@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 
-# ============================
-# Metrics for all 50 epochs
-# ============================
+# ==========================================
+# Data for 50 epochs (from logs)
+# ==========================================
 
 epochs = list(range(50))
 
@@ -38,22 +38,46 @@ f1 = [
 0.6413,0.6423,0.6414,0.6409,0.6406,0.6397,0.6381,0.6355,0.6349,0.6347
 ]
 
-# ============================
-# Plotting
-# ============================
+ddi_rate = [
+0.0701,0.0700,0.0702,0.0703,0.0706,0.0706,0.0712,0.0714,0.0717,0.0716,
+0.0717,0.0717,0.0723,0.0723,0.0724,0.0721,0.0726,0.0727,0.0727,0.0730,
+0.0730,0.0730,0.0730,0.0732,0.0735,0.0731,0.0734,0.0735,0.0732,0.0734,
+0.0738,0.0736,0.0734,0.0732,0.0735,0.0735,0.0737,0.0738,0.0738,0.0739,
+0.0726,0.0735,0.0735,0.0742,0.0746,0.0753,0.0757,0.0767,0.0781,0.0785
+]
 
-plt.figure(figsize=(12, 8))
+med = [
+22.6041,22.8251,22.5871,22.5919,22.6449,22.6023,22.7835,22.7783,22.7025,22.6425,
+22.7455,22.6592,22.69,22.7274,22.66,22.4738,22.6137,22.6706,22.5531,22.6028,
+22.5458,22.5824,22.4372,22.4178,22.6243,22.5003,22.5789,22.6107,22.5003,22.5657,
+22.5116,22.4259,22.5785,22.4473,22.5258,22.5572,22.3974,22.5325,22.4506,22.4078,
+22.6206,22.3258,22.3579,22.1584,22.0373,21.9254,21.6880,21.4536,21.1483,21.0866
+]
 
-plt.plot(epochs, loss, label="Loss")
-plt.plot(epochs, jaccard, label="Jaccard")
-plt.plot(epochs, prauc, label="PRAUC")
-plt.plot(epochs, f1, label="F1")
+# ==========================================
+# Helper function to plot and save
+# ==========================================
 
-plt.xlabel("Epoch")
-plt.ylabel("Metric Value")
-plt.title("Training Metrics Across 50 Epochs")
-plt.legend()
-plt.grid(True)
+def make_plot(y, title, filename):
+    plt.figure(figsize=(8,5))
+    plt.plot(epochs, y)
+    plt.xlabel("Epoch")
+    plt.ylabel(title)
+    plt.title(f"{title} Across Epochs")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    plt.close()
 
-plt.tight_layout()
-plt.show()
+# ==========================================
+# Generate individual plots
+# ==========================================
+
+make_plot(loss, "Loss", "loss.png")
+make_plot(jaccard, "Jaccard", "jaccard.png")
+make_plot(prauc, "PRAUC", "prauc.png")
+make_plot(f1, "F1 Score", "f1.png")
+make_plot(ddi_rate, "DDI Rate", "ddi_rate.png")
+make_plot(med, "MED", "med.png")
+
+print("✅ Saved: loss.png, jaccard.png, prauc.png, f1.png, ddi_rate.png, med.png")
