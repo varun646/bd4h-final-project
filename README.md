@@ -1,4 +1,4 @@
-# DrugRec - Debiased, Longitudinal and Coordinated Drug Recommendation
+# Recreating DrugRec - Debiased, Longitudinal and Coordinated Drug Recommendation
 
 This repository is a recreation of the DrugRec model from the NeurIPS 2022 paper **"Debiased, Longitudinal and Coordinated Drug Recommendation through Multi-Visit Clinic Records"** by Sun et al.
 
