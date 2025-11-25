@@ -188,7 +188,7 @@ def ddi_rate_score(record, path):
     return ddi_pairs / all_pairs
 
 
-from bd4hFinalProject.satsolver import *
+from satsolver import *
 
 
 def Post_DDI(pred_result, ddi_pair, ehr_train_pair):

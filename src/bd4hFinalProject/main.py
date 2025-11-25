@@ -1,38 +1,3 @@
-#
-# if __name__ == '__main__':
-#     # load data
-#     data_path = '../data/output/records_final_iii.pkl'
-#     voc_path = '../data/output/voc_iii_sym1_mulvisit.pkl'
-#
-#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     data = dill.load(open(data_path, 'rb'))
-#
-#     voc = dill.load(open(voc_path, 'rb'))
-#     diag_voc, pro_voc, med_voc = voc['diag_voc'], voc['pro_voc'], voc['med_voc']
-#
-#     # split train/val/test set
-#     split_point = int(len(data) * 2 / 3)
-#     data_train = data[:split_point]
-#     eval_len = int(len(data[split_point:]) / 2)
-#     data_test = data[split_point:split_point + eval_len]
-#     data_eval = data[split_point + eval_len:]
-#
-#     voc_size = (len(diag_voc.idx2word), len(pro_voc.idx2word), len(med_voc.idx2word))
-#
-#     ddi_adj_path = '../data/output/ddi_A_iii.pkl'
-#     ddi_adj = dill.load(open(ddi_adj_path, 'rb'))
-#
-#     # Build empirical co-occurence matrix over training visits
-#     drug_co_train = np.zeros((voc_size[-1], voc_size[-1]))
-#     for patient in data_train:
-#         for adm in patient:
-#             med_set = adm[-1]
-#             for med_i in med_set:
-#                 for med_j in med_set:
-#                     if med_j <= med_i:
-#                         continue
-#                     drug_co_train[med_i, med_j] += 1
-
 import dill
 import numpy as np
 from collections import defaultdict
@@ -41,8 +6,8 @@ import os
 import torch
 import torch.nn as nn
 import time
-from bd4hFinalProject.models.models import DrugRec
-from bd4hFinalProject.util import llprint, multi_label_metric, ddi_rate_score, Post_DDI
+from models import DrugRec
+from util import llprint, multi_label_metric, ddi_rate_score, Post_DDI
 import torch.nn.functional as F
 import math
 
@@ -57,7 +22,7 @@ except AttributeError:
     # Older torch versions won’t have this, safe to ignore
     pass
 
-DATA_ROOT = "/Users/vnarayan35/Documents/GitHub/bd4h-final-project/data/output"
+DATA_ROOT = "../../data/output"
 
 
 class Config:
