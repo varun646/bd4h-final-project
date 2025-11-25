@@ -1,3 +1,9 @@
+"""
+These are utilitiy functions for the  2-SAT solver process.
+This includes steps for evaluation, DDI computation, and post-processing
+our predictions.
+"""
+
 from sklearn.metrics import (
     jaccard_score,
     roc_auc_score,
@@ -19,6 +25,32 @@ def llprint(message):
 
 
 def multi_label_metric(y_gt, y_pred, y_prob):
+    """
+    Given our generated labels, compute metrics
+    scoring our multi-label classification task
+
+    Args
+    ----
+    y_gt   : np.ndarray of shape (N, C)
+        Ground truth multi-hot labels.
+    y_pred : np.ndarray of shape (N, C)
+        Binary predictions (0/1) per class.
+    y_prob : np.ndarray of shape (N, C)
+        Predicted probabilities per class.
+
+    Returns
+    -------
+    ja      : float
+        Jaccard similarity averaged over samples.
+    prauc   : float
+        Area under precision–recall curve.
+    avg_prc : float
+        Mean per-sample precision (TP / predicted positives).
+    avg_rec : float
+        Mean per-sample recall (TP / actual positives).
+    avg_f1  : float
+        Mean per-sample F1 using per-sample precision/recall.
+    """
     def jaccard(y_gt, y_pred):
         score = []
         for b in range(y_gt.shape[0]):
@@ -100,12 +132,14 @@ def multi_label_metric(y_gt, y_pred, y_prob):
         auc = roc_auc(y_gt, y_prob)
     except:
         auc = 0.0
+
+    # These metrics aren't returned
     # precision
-    p_1 = precision_at_k(y_gt, y_prob, k=1)
-    p_3 = precision_at_k(y_gt, y_prob, k=3)
-    p_5 = precision_at_k(y_gt, y_prob, k=5)
-    # macro f1
-    f1 = f1(y_gt, y_pred)
+    # p_1 = precision_at_k(y_gt, y_prob, k=1)
+    # p_3 = precision_at_k(y_gt, y_prob, k=3)
+    # p_5 = precision_at_k(y_gt, y_prob, k=5)
+    # # macro f1
+    # f1 = f1(y_gt, y_pred)
     # precision
     prauc = precision_auc(y_gt, y_prob)
     # jaccard
@@ -119,38 +153,76 @@ def multi_label_metric(y_gt, y_pred, y_prob):
 
 
 def ddi_rate_score(record, path):
-    # ddi rate
+    """
+    Compute DDI rate in predictions.
+
+    Parameters
+    ----------
+    record : list[list[list[int]]]
+       record[p][v] = list of med codes predicted for visit v of patient p.
+    path : str
+       Path to ddi_A_iii.pkl adjacency matrix.
+
+    Returns
+    -------
+    ddi_rate : float
+    """
     ddi_A = dill.load(open(path, "rb"))
-    all_cnt = 0
-    dd_cnt = 0.0
+    all_pairs = 0
+    ddi_pairs = 0
+
     for patient in record:
         for adm in patient:
-            med_code_set = adm
-            for i, med_i in enumerate(med_code_set):
-                for j, med_j in enumerate(med_code_set):
+            meds = adm
+            for i, mi in enumerate(meds):
+                for j, mj in enumerate(meds):
                     if j <= i:
                         continue
-                    all_cnt += 1
-                    if ddi_A[med_i, med_j] == 1 or ddi_A[med_j, med_i] == 1:
-                        dd_cnt += 1
-    if all_cnt == 0:
+                    all_pairs += 1
+                    if ddi_A[mi, mj] == 1 or ddi_A[mj, mi] == 1:
+                        ddi_pairs += 1
+
+    if all_pairs == 0:
         return 0.0
-    return dd_cnt / all_cnt
+
+    return ddi_pairs / all_pairs
 
 
-from bd4hFinalProject.satsolver import *
+from satsolver import *
 
 
 def Post_DDI(pred_result, ddi_pair, ehr_train_pair):
-    # input: numpy (seq, voc_size) (0~1)
+    """
+    Now we apply the 2-SAT post-processing used in the DrugRec paper.
+
+    This removes medication pairs forbidden by:
+    - DDI adjacency matrix
+    - but allowed if seen together often in EHR (ehr_train_pair)
+
+    Parameters
+    ----------
+    pred_result     : (seq, voc_size) float numpy array of probabilities
+    ddi_pair        : list of (i,j) pairs where DDI=1
+    ehr_train_pair  : list of real-world allowed medication pairs
+
+    Returns
+    -------
+    post_result : np.ndarray same shape as pred_result, binary
+    """
     post_result, y_pred = np.zeros_like(pred_result), np.zeros_like(pred_result)
     y_pred[pred_result >= 0.5] = 1
     for k in range(pred_result.shape[0]):
-        pred_idx = np.nonzero(y_pred[k])[0]
+        pred_idx = np.nonzero(y_pred[k])[0]                   # predicted meds for visit t
+
+        # Map each predicted med to the temporary variable index
         tmp_dict = {idx: n for n, idx in enumerate(pred_idx)}
+
+        # Then we map variable index to the related probability
         pred_prob = {str(n): pred_result[k, idx] for n, idx in enumerate(pred_idx)}
         formula = two_cnf(pred_prob)
         ddi_list = []
+
+        # Now we can build the 2-CNF clauses for bad medication pairs
         for i, j in ddi_pair:
             if i in pred_idx and j in pred_idx and i < j:
                 if (i, j) not in ehr_train_pair:
@@ -160,8 +232,11 @@ def Post_DDI(pred_result, ddi_pair, ehr_train_pair):
                         ddi_list.append(i)
                     if j not in ddi_list:
                         ddi_list.append(j)
+
+        # Run our 2-SAT solver
         f = two_sat_solver(formula)
         if f:
+            # these are meds marked as true in solver plus meds not involved in any DDI
             pos = [list(tmp_dict.keys())[int(n)] for n, x in f.items() if x == 1] + [
                 idx for idx in pred_idx if idx not in ddi_list
             ]
